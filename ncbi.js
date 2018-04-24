@@ -44,15 +44,17 @@ function getProject(query,res){ //return project which query(sample) contained..
 				let key_rep = JSON.parse(key.replace('key','\"key\"').replace('mode','\"mode\"'))
 				console.log("[INFO] sample_key: "+key_rep.key );
 			
-				let OPTIONS = {
-					url: "https://www.ncbi.nlm.nih.gov/Traces/study/proxy/run_selector.cgi?wt=json&indent=true&omitHeader=true&",
+				let OPTIONS = { 
+					// url from run_selector
+					url: "https://www.ncbi.nlm.nih.gov/Traces/study/proxy/run_selector.cgi?wt=json&indent=true&omitHeader=true&", 
 					headers:{'Content-Type':'application/json'},
 					body:'q=recordset:'+key_rep.key
 				}
 
 				request.post(OPTIONS,function(err,res,result){
 					let meta=JSON.parse(result).response.docs[0]
-					console.log("[INFO] PROJECT: "+meta.BioProject_s+" Alias: "+meta.SRA_Study_s);//+project);
+					console.log("[INFO]\tPROJECT: "+meta.BioProject_s+"\n\tAlias: "+meta.SRA_Study_s);//+project);
+					console.log("[INFO]\tPROJECT_NAME: "+meta.project_name_s)
 					res=[meta.BioProject_s,meta.SRA_Study_s];
 				});
 			}catch(err){
@@ -64,10 +66,11 @@ function getProject(query,res){ //return project which query(sample) contained..
 		console.log("MG_RAST");
 		request.get("https://api-ui.mg-rast.org/search?all="+query,function(err,res,body){
 			try{
-				console.log(JSON.parse(body).data[0])
-				let MGproject = JSON.parse(body).data[0].project_id;
-				let MGpmid = JSON.parse(body).data[0].pubmed_id;
-				console.log("[INFO] PROJECT: " + MGproject+" PMID: "+MGpmid);
+				let MGproject = JSON.parse(body).data[0]; //check you can find pmid in this query...
+				console.log("[INFO]\tPROJECT: " + MGproject.project_id);
+				console.log("[INFO]\tPROJECT_NAME: "+MGproject.project_name+" \n\tPMID: "+MGproject.pubmed_id) 
+				// download meta 
+				// http://api.metagenomics.anl.gov/project/<<PROJECT>>?verbosity=full --> returns json
 			}catch(err){
 				console.log("[ERROR] no accession! try again");
 			}
