@@ -3,8 +3,6 @@
 	PUBLIC DATA CHECKER
 	USAGE : localhost:1337/check_project?query=QUERY
 	RETURN : something...many...
-
-
 */
 
 const express = require('express');
@@ -15,8 +13,10 @@ app.get('/check_project',function(req,res,next){
 	let inquery = req.query.query;
 	try{
 		console.log("accession: "+inquery);
-		let aa=getProject(inquery);
+		let aa
+		getProject(inquery,aa);
 		console.log(aa)
+		res.send("aa")
 	}catch(err){
 		console.log("[ERROR] something wrong: "+err);
 	}
@@ -28,11 +28,14 @@ function checkQuery(query){ //check is query project_type : PRJNA012312 ERP12312
 	return reProject.test(query)
 }
 
-function getProject(query){ //return project which query(sample) contained...
-	let reSample = new RegExp("((E|S|D)R(R|S)[0-9]+|mg(m|s)[0-9]+\.3)","g");
-	let reProject = new RegExp("(^PRJ(NA|EB|DA|DB)[0-9]+|^(E|S|D)RP[0-9]+|^mgp[0-9]+)","g");
+function getProject(query,res){ //return project which query(sample) contained...
+	//let reSample = new RegExp("((E|S|D)R(R|S)[0-9]+|mg(m|s)[0-9]+\.3)","g");
+	//let reProject = new RegExp("(^PRJ(NA|EB|DA|DB)[0-9]+|^(E|S|D)RP[0-9]+|^mgp[0-9]+)","g");
 	
-	if(reSample.test(query)==true || reProject.test(query)==true){ //from sample
+	let reNCBI = new RegExp("((E|S|D)R(R|S)[0-9]+|^(E|S|D)RP[0-9]+|^PRJ(NA|EB|DA|DB)[0-9]+)","g");
+	let reMGRAST = new RegExp("(mg(m|s)[0-9]+\.3|^mgp[0-9]+)");
+	
+	if(reNCBI.test(query)==true){ //from sample //it's ncbi --> @ mg-rast branch...
 		request.get("https://www.ncbi.nlm.nih.gov/Traces/study/?acc="+query+"&go=go",function(error,response,body){
 			console.log('[INFO] status: ',response && response.statusCode);
 			let keyRe=new RegExp("\{key:\"[0-9,a-z]+\", mode:\"[a-z]+\"\}","g");
@@ -50,13 +53,26 @@ function getProject(query){ //return project which query(sample) contained...
 				request.post(OPTIONS,function(err,res,result){
 					let meta=JSON.parse(result).response.docs[0]
 					console.log("[INFO] PROJECT: "+meta.BioProject_s+" Alias: "+meta.SRA_Study_s);//+project);
-					return [meta.BioProject_s,meta.SRA_Study_s];
+					res=[meta.BioProject_s,meta.SRA_Study_s];
 				});
 			}catch(err){
-					console.log("[ERROR] no accession! try again")
+				console.log("[ERROR] no accession! try again")
 			}
 		});
 
+	}else if(reMGRAST.test(query)==true){
+		console.log("MG_RAST");
+		request.get("https://api-ui.mg-rast.org/search?all="+query,function(err,res,body){
+			try{
+				console.log(JSON.parse(body).data[0])
+				let MGproject = JSON.parse(body).data[0].project_id;
+				let MGpmid = JSON.parse(body).data[0].pubmed_id;
+				console.log("[INFO] PROJECT: " + MGproject+" PMID: "+MGpmid);
+			}catch(err){
+				console.log("[ERROR] no accession! try again");
+			}
+		})
+	
 		
 	}else{
 		console.log("[ERROR] wrong type! try again");
