@@ -28,10 +28,65 @@ function checkQuery(query){ //check is query project_type : PRJNA012312 ERP12312
 	return reProject.test(query)
 }
 
+app.get('/download_meta',function(req,res,next){
+	//console.log(req)
+	let inquery = req.query.query;
+	console.log(inquery)
+	try{
+		let reProject = new RegExp("(^PRJ(NA|EB|DA|DB)[0-9]+|^(E|S|D)RP[0-9]+|^mgp[0-9]+)","g");
+		
+		if (reProject.test(inquery)==true){ //project
+			//download meta for this project
+			let reNCBI = new RegExp("(^PRJ(NA|EB|DA|DB)[0-9]+|^(E|S|D)RP[0-9]+)","g");
+			let reMGRAST = new RegExp("^mgp[0-9]+","g");
+			
+			if (reNCBI.test(inquery)==true){ //NCBI
+				// download metadata from NCBI
+				// http://trace.ncbi.nlm.nih.gov/Traces/sra/sra.cgi?save=efetch&rettype=runinfo&db=sra&term=<<PROJECT>> --> returns tsv like txt
+				// maybe different link....
+				let url = "http://trace.ncbi.nlm.nih.gov/Traces/sra/sra.cgi?save=efetch&rettype=runinfo&db=sra&term="+inquery; // --> csv 
+				console.log("[INFO] download metadata from "+url)
+				request.get(url,function(err,response,body){
+					require('fs').writeFile('./download/'+inquery+'.csv',body,function(err){
+						if(err==null){
+							console.log("[INFO] downloading metadata (txt) --> ./download/"+inquery+".csv")
+						}else{
+							console.log("[ERROR] "+err)
+						}
+						
+					})
+				})
+				
+			}else if(reMGRAST.test(inquery)==true){ //MG-RAST
+				// download metadata from MG-RAST
+				// http://api.metagenomics.anl.gov/project/<<PROJECT>>?verbosity=full --> returns json
+				let url = "http://api.metagenomics.anl.gov/project/"+inquery+"?verbosity=full";
+				console.log("[INFO] download metadata from "+url)
+				request.get(url,function(err,response,body){
+					if(JSON.parse(body).ERROR){
+						console.log("[ERROR] "+JSON.parse(body).ERROR);
+					}else{
+						require('fs').writeFile('./download/'+inquery+'.js',JSON.parse(body),function(err){
+							if(err){
+								console.log("[ERROR] "+err);
+							}else{
+								console.log("downloading metadata (json) --> ./download/"+inquery+".js");
+							}
+						});
+					}
+				})
+			}
+			
+		}else{
+			console.log("[INFO] accession should be PROJECT! try again")
+		}
+	}catch(err){
+		console.log("[ERROR] something wrong: "+err);
+	}
+})
+
+
 function getProject(query,res){ //return project which query(sample) contained...
-	//let reSample = new RegExp("((E|S|D)R(R|S)[0-9]+|mg(m|s)[0-9]+\.3)","g");
-	//let reProject = new RegExp("(^PRJ(NA|EB|DA|DB)[0-9]+|^(E|S|D)RP[0-9]+|^mgp[0-9]+)","g");
-	
 	let reNCBI = new RegExp("((E|S|D)R(R|S)[0-9]+|^(E|S|D)RP[0-9]+|^PRJ(NA|EB|DA|DB)[0-9]+)","g");
 	let reMGRAST = new RegExp("(mg(m|s)[0-9]+\.3|^mgp[0-9]+)");
 	
@@ -70,7 +125,7 @@ function getProject(query,res){ //return project which query(sample) contained..
 				console.log("[INFO]\tPROJECT: " + MGproject.project_id);
 				console.log("[INFO]\tPROJECT_NAME: "+MGproject.project_name+" \n\tPMID: "+MGproject.pubmed_id) 
 				// download meta 
-				// http://api.metagenomics.anl.gov/project/<<PROJECT>>?verbosity=full --> returns json
+				
 			}catch(err){
 				console.log("[ERROR] no accession! try again");
 			}
