@@ -45,6 +45,7 @@ app.get('/download_meta',function(req,res,next){
 				// http://trace.ncbi.nlm.nih.gov/Traces/sra/sra.cgi?save=efetch&rettype=runinfo&db=sra&term=<<PROJECT>> --> returns tsv like txt
 				// maybe different link....
 				let url = "http://trace.ncbi.nlm.nih.gov/Traces/sra/sra.cgi?save=efetch&rettype=runinfo&db=sra&term="+inquery; // --> csv 
+				
 				console.log("[INFO] download metadata from "+url)
 				request.get(url,function(err,response,body){
 					require('fs').writeFile('./download/'+inquery+'.csv',body,function(err){
