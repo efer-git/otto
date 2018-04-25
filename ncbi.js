@@ -7,18 +7,50 @@
 
 const express = require('express');
 const request = require('request');
+const mongoose = require('mongoose');
 const app = express();
+//
+mongoose.connect('mongodb://localhost/test');
+mongoose.Promise = global.Promise;
+var db = mongoose.connection;
+db.on('error', console.error.bind(console, 'connection error:'));
+db.once('open', function callback () {
+        console.log("mongo db connection OK.");
+});
+var schema = mongoose.Schema;
+var associationSchema = new schema({
+        _id: Number,
+        type: String,
+        status: String,
+        url: String,
+        token: String,
+        createdDate: Date,
+        queuedDate: Date,
+        startedDate: Date,
+        completedDate: Date
+});
 
 app.get('/check_project',function(req,res,next){
 	let inquery = req.query.query;
 	try{
 		console.log("accession: "+inquery);
-		let aa
-		getProject(inquery,aa);
-		console.log(aa)
-		res.send("aa")
+		let newdata;
+		getProject(inquery,function(val){
+			newdata=val;
+			try{
+				console.log(newdata)
+				res.send(newdata)
+				res.end('')
+			}catch(err){
+				console.log(err)
+			}
+
+		});
+		
 	}catch(err){
 		console.log("[ERROR] something wrong: "+err);
+		res.writeHead(400,'');
+		res.end('')
 	}
 
 });
@@ -28,8 +60,7 @@ function checkQuery(query){ //check is query project_type : PRJNA012312 ERP12312
 	return reProject.test(query)
 }
 
-app.get('/download_meta',function(req,res,next){
-	//console.log(req)
+app.get('/download_meta',function(req,res,next){ //download primitive file.... but is it legit?
 	let inquery = req.query.query;
 	console.log(inquery)
 	try{
@@ -43,7 +74,7 @@ app.get('/download_meta',function(req,res,next){
 			if (reNCBI.test(inquery)==true){ //NCBI
 				// download metadata from NCBI
 				// http://trace.ncbi.nlm.nih.gov/Traces/sra/sra.cgi?save=efetch&rettype=runinfo&db=sra&term=<<PROJECT>> --> returns tsv like txt
-				// maybe different link....
+				// maybe different link....if you find a link, please tell me...
 				let url = "http://trace.ncbi.nlm.nih.gov/Traces/sra/sra.cgi?save=efetch&rettype=runinfo&db=sra&term="+inquery; // --> csv 
 				
 				console.log("[INFO] download metadata from "+url)
@@ -87,10 +118,10 @@ app.get('/download_meta',function(req,res,next){
 })
 
 
-function getProject(query,res){ //return project which query(sample) contained...
+function getProject(query,callback){ //return project which query(sample) contained... //this is how you return value....haha
 	let reNCBI = new RegExp("((E|S|D)R(R|S)[0-9]+|^(E|S|D)RP[0-9]+|^PRJ(NA|EB|DA|DB)[0-9]+)","g");
 	let reMGRAST = new RegExp("(mg(m|s)[0-9]+\.3|^mgp[0-9]+)");
-	
+	let result = {};
 	if(reNCBI.test(query)==true){ //from sample //it's ncbi --> @ mg-rast branch...
 		request.get("https://www.ncbi.nlm.nih.gov/Traces/study/?acc="+query+"&go=go",function(error,response,body){
 			console.log('[INFO] status: ',response && response.statusCode);
@@ -109,12 +140,15 @@ function getProject(query,res){ //return project which query(sample) contained..
 
 				request.post(OPTIONS,function(err,res,result){
 					let meta=JSON.parse(result).response.docs[0]
+					console.log(meta)
 					console.log("[INFO]\tPROJECT: "+meta.BioProject_s+"\n\tAlias: "+meta.SRA_Study_s);//+project);
 					console.log("[INFO]\tPROJECT_NAME: "+meta.project_name_s)
-					res=[meta.BioProject_s,meta.SRA_Study_s];
+					let out = {'project':meta.BioProject_s,'alias':meta.SRA_Study_s,'project_name':meta.project_name_s};
+					return callback(JSON.stringify(out));
 				});
 			}catch(err){
 				console.log("[ERROR] no accession! try again")
+				return callback(JSON.stringify("[ERROR] no accession! try again"))
 			}
 		});
 
@@ -125,35 +159,41 @@ function getProject(query,res){ //return project which query(sample) contained..
 				let MGproject = JSON.parse(body).data[0]; //check you can find pmid in this query...
 				console.log("[INFO]\tPROJECT: " + MGproject.project_id);
 				console.log("[INFO]\tPROJECT_NAME: "+MGproject.project_name+" \n\tPMID: "+MGproject.pubmed_id) 
-				// download meta 
+				let out = {'project':MGproject.project_id,'project_name':MGproject.project_name,'pmid':MGproject.pubmed_id};
+				return callback(JSON.stringify(out));
 				
 			}catch(err){
 				console.log("[ERROR] no accession! try again");
+				return callback(JSON.stringify("[ERROR] no accession! try again"))
 			}
 		})
 	
 		
 	}else{
 		console.log("[ERROR] wrong type! try again");
+		return callback("[ERROR] wrong type! try again")
 	}
-		
 }
-	/*
-	let reNCBI_sample = new RegExp("^(E|S|D)RR[0-9]+","g");
-	let reMGRAST_sample = new RegEx[("^mg(m/s)[0-9]+\.3","g");
-	
-	if (reNCBI_prj==true){
-		console.log(reNCBI_prj.test(query))
-	}else if(reMGRAST_prj==true){
-		console.log(reMGRAST_prj.test(query))
-	}else{
-	*/		
-
-	
-
-
 
 const server = app.listen(1337,function(){
 	console.log("server started on port 1337");
 });
 
+/* TODO
+0. make DB
+  - in SQL? or mongo?
+1. get paper info
+  - pmid / pmcid 
+  - in ncbi, need to another link...
+  
+3. make trigger function
+  - hulk / autopipeline --> i prefer hulk for high-throughput  
+  - trigger function
+    * maybe shell...?
+    * issues
+      - how to communicate
+      - how to return value
+      - primer issue
+      - when to link meta-data
+
+*/
